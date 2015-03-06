@@ -24,3 +24,5 @@ Result: See result
 
 Holo result:
 {Type: [Global,Player], Title: [HoloTitle], Lines: [Lines], Player: [Player], StayTIme: [XSeconds], UpdateIn: [XSeconds], Error: [ErrorMessage], HoloId: [HologramId], SortId: [SortNumber]}
+
+<strong>LINK TO HOLOGRAPHIC DISPLAYS</strong>: http://dev.bukkit.org/bukkit-plugins/holographic-displays/
