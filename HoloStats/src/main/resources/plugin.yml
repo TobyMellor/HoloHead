@@ -1,0 +1,11 @@
+name: HoloStats
+main: org.primesoft.holostats.HoloStatsMain
+version: 1.0
+authors: [SBPrime]
+depend: [HolographicDisplays]
+commands:
+  holostatsreaload:
+    aliases: [hsreload]
+    description: 'reload the holo stats configuration.'
+    usage: /<command>
+    permission: holostats.admin
