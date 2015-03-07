@@ -24,10 +24,14 @@ public class ReloadCommand implements CommandExecutor
     
     
     public boolean onCommand(CommandSender cs, Command cmnd, String string, String[] strings) {
+        m_pluginMain.reloadConfig();
+        
         return ReloadConfig();        
     }
 
     public boolean ReloadConfig() {
+        
+        
         if (!ConfigProvider.load(m_pluginMain)) {
             log("Error loading config");
             return false;

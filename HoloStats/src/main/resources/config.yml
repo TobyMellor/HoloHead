@@ -3,4 +3,4 @@ HoloStats:
   apiKey: SNNZAVcs
   broadcast:
   - "{ \"type\":\"Config\", \"title\":\"Sample hologram\", \"lines\":\"This is a sample hologram\nLine1.\", \"player\":\"SBPrime\", \"stayTime\":5, \"updateIn\":0, \"error\":0, \"holoId\":0, \"sortId\":0 }"
-  holoName: myTestHolo
+  holoName: spawnhologram

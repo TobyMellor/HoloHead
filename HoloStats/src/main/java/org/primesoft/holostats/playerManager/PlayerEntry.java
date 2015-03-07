@@ -1,5 +1,6 @@
 package org.primesoft.holostats.playerManager;
 
+import com.gmail.filoghost.holographicdisplays.api.Hologram;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -18,6 +19,7 @@ public class PlayerEntry {
     private String m_name;
     private final UUID m_uuid;
     private HologramWrapper[] m_holograms;
+    private Hologram m_hologram;
     private final Object m_mutex = new Object();
 
     public PlayerEntry(Player player, String name) {
@@ -114,6 +116,21 @@ public class PlayerEntry {
                 }
                 System.out.println("--------------------------------");
             }
+        }
+    }
+
+    
+    /**
+     * Set current display hologram
+     * @param hologram 
+     */
+    public void setHologram(Hologram hologram) {
+        synchronized(m_mutex){
+            if (m_hologram != null) {
+                m_hologram.delete();                
+            }
+            
+            m_hologram = hologram;
         }
     }
 }

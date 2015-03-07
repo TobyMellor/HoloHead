@@ -14,6 +14,12 @@ import org.primesoft.holostats.utils.JSONUtils;
  */
 public final class HologramWrapper {
 
+    /**
+     * Parse JSON object into HologramWrapper
+     *
+     * @param o
+     * @return
+     */
     public static HologramWrapper parse(JSONObject o) {
         if (o == null) {
             return null;

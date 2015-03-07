@@ -9,6 +9,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.primesoft.holostats.HoloStatsMain;
+import org.primesoft.holostats.hologram.HologramManager;
 
 /**
  *
@@ -51,7 +52,7 @@ public class PlayerManager implements Listener {
         if (entry == null) {
             return;
         }
-        
+    
         m_parent.getHologramManager().updatePlayer(entry);
     }
 

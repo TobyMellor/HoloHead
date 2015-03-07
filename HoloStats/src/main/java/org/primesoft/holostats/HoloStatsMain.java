@@ -116,13 +116,11 @@ public class HoloStatsMain extends JavaPlugin {
         PluginCommand commandReload = getCommand("hsreload");
         commandReload.setExecutor(m_reloadCommandHandler);
         
+        m_playerManager.initalize();
         if (!m_reloadCommandHandler.ReloadConfig()) {
             log("Error loading config");
             return;
-        }
-        
-        m_playerManager.initalize();
-        m_hologramManager.initialize();
+        }                        
         
         super.onEnable();
         
@@ -131,6 +129,10 @@ public class HoloStatsMain extends JavaPlugin {
     
     @Override
     public void onDisable() {
+        m_hologramManager.cleanup();
+        
         super.onDisable();
+        
+        log("Disabled");
     }
 }
