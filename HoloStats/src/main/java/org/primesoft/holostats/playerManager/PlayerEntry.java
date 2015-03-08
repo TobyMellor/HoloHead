@@ -8,8 +8,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitScheduler;
-import org.primesoft.holostats.HoloStatsMain;
 import org.primesoft.holostats.hologram.HologramWrapper;
 
 /**
@@ -20,35 +18,28 @@ public class PlayerEntry {
 
     private Player m_player;
     private String m_name;
-    private UUID m_token;
     private final UUID m_uuid;
-    private HologramWrapper[] m_holograms;
+    private List<HologramWrapper> m_holograms;
     private Hologram m_hologram;
     private final Object m_mutex = new Object();
-    private final PlayerManager m_playerManager;
 
     private HologramWrapper m_currentPage;
     private long m_nextPage = 0;
 
-    public PlayerEntry(PlayerManager playerManager,
-            Player player, String name) {
-        this(playerManager, player, name, player.getUniqueId());
+    public PlayerEntry(Player player, String name) {
+        this(player, name, player.getUniqueId());
     }
 
-    public PlayerEntry(PlayerManager playerManager,
-            String name, UUID uuid) {
-        this(playerManager, null, name, uuid);
+    public PlayerEntry(String name, UUID uuid) {
+        this(null, name, uuid);
     }
 
-    private PlayerEntry(PlayerManager playerManager,
-            Player player, String name, UUID uuid) {
+    private PlayerEntry(Player player, String name, UUID uuid) {
         m_player = player;
         m_uuid = uuid;
         m_name = name;
-        m_holograms = new HologramWrapper[0];
+        m_holograms = new ArrayList<HologramWrapper>();
         m_currentPage = null;
-        m_playerManager = playerManager;
-        m_token = UUID.randomUUID();
     }
 
     public Player getPlayer() {
@@ -98,19 +89,13 @@ public class PlayerEntry {
         synchronized (m_mutex) {
             List<HologramWrapper> holograms = new ArrayList<HologramWrapper>();
             if (pHolograms != null) {
-                for (HologramWrapper h : pHolograms) {
-                    holograms.add(h);
-                }
+                holograms.addAll(Arrays.asList(pHolograms));
             }
             if (gHolograms != null) {
-                for (HologramWrapper h : gHolograms) {
-                    holograms.add(h);
-                }
+                holograms.addAll(Arrays.asList(gHolograms));
             }
             if (cHolograms != null) {
-                for (HologramWrapper h : cHolograms) {
-                    holograms.add(h);
-                }
+                holograms.addAll(Arrays.asList(cHolograms));
             }
 
             Collections.sort(holograms, new Comparator<HologramWrapper>() {
@@ -121,8 +106,8 @@ public class PlayerEntry {
             });
 
             m_currentPage = null;
-            m_holograms = holograms.toArray(new HologramWrapper[0]);
-            nextPage(System.currentTimeMillis());
+            m_holograms.clear();
+            m_holograms.addAll(holograms);
         }
     }
 
@@ -149,23 +134,21 @@ public class PlayerEntry {
      */
     public long nextPage(long now) {
         synchronized (m_mutex) {
-            if (m_nextPage < now || m_currentPage == null) {
-                if (m_currentPage == null) {
-                    m_currentPage = m_holograms != null && m_holograms.length > 0 ? m_holograms[0] : null;
+            if (m_nextPage <= now || m_currentPage == null) {
+                if (m_currentPage == null) {                    
+                    m_currentPage = !m_holograms.isEmpty() ? m_holograms.get(0) : null;
                 } else {
-                    int idx = Arrays.binarySearch(m_holograms, m_currentPage);
+                    int idx = m_holograms.indexOf(m_currentPage);
 
-                    idx = (idx + 1) % m_holograms.length;
+                    idx = (idx + 1) % m_holograms.size();
 
-                    m_currentPage = m_holograms[idx];
+                    m_currentPage = m_holograms.get(idx);
                 }
 
-                m_token = UUID.randomUUID();
                 m_nextPage = now + (m_currentPage != null ? m_currentPage.stayTime() : 0) * 1000;
 
-                setPage(m_token, m_currentPage);
+                setPage(m_currentPage);
             }
-
             return m_nextPage - now;
         }
     }
@@ -176,36 +159,22 @@ public class PlayerEntry {
      * @param m_token
      * @param m_currentPage
      */
-    private void setPage(final UUID token, final HologramWrapper currentPage) {
+    private void setPage(final HologramWrapper currentPage) {
         final Hologram hologram;
+
         synchronized (m_mutex) {
             hologram = m_hologram;
 
-            if (hologram == null || hologram.isDeleted()
-                    || currentPage == null) {
+            if (hologram == null || hologram.isDeleted()) {
                 return;
             }
         }
 
-        HoloStatsMain plugin = m_playerManager.getParent();
-        BukkitScheduler scheduler = plugin.getScheduler();
-        scheduler.runTask(plugin, new Runnable() {
-            public void run() {
-                String[] lines;
+        final String[] lines = currentPage != null ? currentPage.getLines(m_name) : new String[0];
 
-                synchronized (m_mutex) {
-                    if (!m_token.equals(token) || hologram.isDeleted()) {
-                        return;
-                    }
-
-                    lines = currentPage.getLines(m_name);
-                }
-
-                hologram.clearLines();
-                for (String s : lines) {
-                    hologram.appendTextLine(s);
-                }
-            }
-        });
+        hologram.clearLines();
+        for (String s : lines) {
+            hologram.appendTextLine(s);
+        }
     }
 }

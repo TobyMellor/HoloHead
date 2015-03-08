@@ -79,7 +79,7 @@ public class PlayerManager implements Listener {
                 return wrapper;
             }
 
-            wrapper = new PlayerEntry(this, player, pName);
+            wrapper = new PlayerEntry(player, pName);
             m_playersUids.put(uuid, wrapper);
             return wrapper;
         }

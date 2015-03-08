@@ -3,13 +3,11 @@ package org.primesoft.holostats.hologram;
 import com.gmail.filoghost.holographicdisplays.api.Hologram;
 import com.gmail.filoghost.holographicdisplays.api.HologramsAPI;
 import com.gmail.filoghost.holographicdisplays.api.VisibilityManager;
-import com.gmail.filoghost.holographicdisplays.object.NamedHologram;
 import com.gmail.filoghost.holographicdisplays.object.NamedHologramManager;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
-import org.bukkit.Location;
 import org.bukkit.scheduler.BukkitScheduler;
 import org.json.simple.JSONObject;
 import org.json.simple.JSONValue;
@@ -18,6 +16,7 @@ import org.primesoft.holostats.HoloStatsMain;
 import org.primesoft.holostats.RestAPI;
 import org.primesoft.holostats.configuration.ConfigProvider;
 import org.primesoft.holostats.playerManager.PlayerEntry;
+import org.primesoft.holostats.playerManager.PlayerManager;
 import org.primesoft.holostats.utils.ExceptionHelper;
 
 /**
@@ -26,9 +25,35 @@ import org.primesoft.holostats.utils.ExceptionHelper;
  */
 public class HologramManager {
 
+    /**
+     * Page swap and update loop max wait time (miliseconds)
+     */
+    private static final long MAX_WAIT = 60000;
+
+    /**
+     * Number of ticks per 1000ms
+     */
+    private static final long TICKS_PER_SECOND = 20;
+
+    /**
+     * Holo stats plugin main
+     */
     private final HoloStatsMain m_pluginMain;
+
+    /**
+     * MTA mutex
+     */
     private final Object m_mutex;
+
+    /**
+     * The bukkit scheduler
+     */
     private final BukkitScheduler m_scheduler;
+
+    /**
+     * The player manager
+     */
+    private final PlayerManager m_playerManager;
 
     /**
      * Is the hologram manager initialized
@@ -41,24 +66,41 @@ public class HologramManager {
     private Hologram m_targetHologram;
 
     /**
+     * Number of player holograms
+     */    
+    private int m_playerHolosCnt;
+
+    /**
+     * List of global holograms
+     */
+    private HologramWrapper[] m_globalHolos;
+
+    /**
+     * List of configuration holograms
+     */
+    private HologramWrapper[] m_configHolos;
+
+    
+    /**
      * Data update token
      */
     private UUID m_token;
 
+    /**
+     * THe page changer token
+     */
+    private UUID m_tokenPageChanger;
+
     private static void log(String msg) {
         HoloStatsMain.log(msg);
     }
-    private int m_playerHolosCnt;
-
-    private HologramWrapper[] m_globalHolos;
-
-    private HologramWrapper[] m_configHolos;
 
     public HologramManager(HoloStatsMain pluginMain) {
         m_pluginMain = pluginMain;
         m_mutex = new Object();
         m_isInitialized = false;
         m_scheduler = m_pluginMain.getScheduler();
+        m_playerManager = m_pluginMain.getPlayerManager();
     }
 
     public boolean initialize() {
@@ -98,7 +140,7 @@ public class HologramManager {
 
                 m_targetHologram = null;
             }
-                        
+
             m_token = UUID.randomUUID();
             initializePlayerHolograms();
         }
@@ -217,6 +259,8 @@ public class HologramManager {
                     log(String.format(format, holos.length + " holograms for player " + player.getName() + " loaded."));
                     player.update(holos, m_globalHolos, m_configHolos);
                 }
+
+                pageChangerStart();
             }
         });
     }
@@ -246,7 +290,7 @@ public class HologramManager {
             }
         }
 
-        PlayerEntry[] allPlayers = m_pluginMain.getPlayerManager().getAll();
+        PlayerEntry[] allPlayers = m_playerManager.getAll();
         log(String.format(format, "Downloading player (" + allPlayers.length + ") holograms."));
         HashMap<PlayerEntry, List<HologramWrapper>> playerHolos = new HashMap<PlayerEntry, List<HologramWrapper>>();
         for (PlayerEntry player : allPlayers) {
@@ -293,14 +337,24 @@ public class HologramManager {
                 player.update(holos, m_globalHolos, m_configHolos);
             }
         }
+
+        pageChangerStart();
     }
 
-    private void initializePlayerHolograms() {        
-        for (PlayerEntry p : m_pluginMain.getPlayerManager().getAll()) {
+    /**
+     * Initialize the player holograms
+     */
+    private void initializePlayerHolograms() {
+        for (PlayerEntry p : m_playerManager.getAll()) {
             initializePlayerHolograms(p);
         }
     }
 
+    /**
+     * Initialize the player hologram
+     *
+     * @param player
+     */
     private void initializePlayerHolograms(PlayerEntry player) {
         if (player == null) {
             return;
@@ -308,5 +362,61 @@ public class HologramManager {
 
         log("Initializing player \"" + player.getName() + "\" hologram.");
         player.setHologram(createHologram(player));
+    }
+
+    /**
+     * Start page changer
+     */
+    private void pageChangerStart() {
+        final UUID token = UUID.randomUUID();
+
+        synchronized (m_mutex) {
+            m_tokenPageChanger = token;
+            log("[" + token.toString() + "] Starting new page changer");
+        }
+
+        m_scheduler.runTask(m_pluginMain, new Runnable() {
+            public void run() {
+                pageChangerLoop(token);
+            }
+        });
+    }
+
+    /**
+     * The hologram changer loop
+     *
+     * @param token
+     */
+    private void pageChangerLoop(final UUID token) {
+        final String format = "[" + token + "] %s";
+
+        long now = System.currentTimeMillis();
+        long nextUpdateIn = Long.MAX_VALUE;
+
+        synchronized (m_mutex) {
+            do {
+                if (!token.equals(m_tokenPageChanger)) {
+                    log(String.format(format, "Token changed."));
+                    return;
+                }
+
+                log(String.format(format, "Calculating next interewal."));
+                final PlayerEntry[] allPlayers = m_playerManager.getAll();
+                for (PlayerEntry p : allPlayers) {
+                    nextUpdateIn = Math.min(nextUpdateIn, p.nextPage(now));
+                }
+            } while (nextUpdateIn < 1);
+
+            nextUpdateIn = Math.min(nextUpdateIn, MAX_WAIT);
+        }
+        
+        long minWait = Math.max(1, nextUpdateIn * TICKS_PER_SECOND / 1000);
+
+        log(String.format(format, "Next page change in " + nextUpdateIn +"ms (" + minWait + " ticks)"));
+        m_scheduler.runTaskLater(m_pluginMain, new Runnable() {
+            public void run() {
+                pageChangerLoop(token);
+            }
+        }, minWait);
     }
 }

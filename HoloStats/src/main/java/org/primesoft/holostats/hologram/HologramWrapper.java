@@ -135,7 +135,7 @@ public final class HologramWrapper {
         }
 
         synchronized (m_mutex) {
-            m_lines = holoLines.toArray(new String[0]);
+            m_lines = holoLines.toArray(new String[0]);            
             m_stayTime = Math.max(stayTime, 1);
             m_nextUpdate = nextUpdate;
             m_sortId = sortId;
@@ -152,24 +152,13 @@ public final class HologramWrapper {
         synchronized (m_mutex) {
             String[] result = new String[m_lines.length];
 
-            //int maxLen = 0;
             for (int i = 0; i < m_lines.length; i++) {
                 String s = m_lines[i];
-                //maxLen = Math.max(maxLen, ChatColor.stripColor(s).length());
 
                 s = s.replaceAll("%player", login);
 
                 result[i] = s;
             }
-
-            //for (int i = 0; i < result.length; i++) {
-                //StringBuilder sb = new StringBuilder(result[i]);
-                //int toAdd = maxLen - ChatColor.stripColor(sb.toString()).length();
-                //for (int j = 0; j < toAdd; j++) {
-                    //sb.append(" ");
-                //}
-                //result[i] = sb.toString();
-            //}
 
             return result;
         }

@@ -46,8 +46,6 @@ public class SkinProvider {
             g.drawImage(img, 0, 0, 8, 8, 8, 8, 16, 16, null);
             g.dispose();
 
-            File outputfile = new File(System.currentTimeMillis() + ".png");
-            ImageIO.write(result, "png", outputfile);
             return result;
         } catch (Exception e) {
             ExceptionHelper.printException(e, "Unable to download player \"" + playerLogin + "\" skin");
