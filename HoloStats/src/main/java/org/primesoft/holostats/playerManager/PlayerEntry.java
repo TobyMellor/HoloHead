@@ -2,11 +2,14 @@ package org.primesoft.holostats.playerManager;
 
 import com.gmail.filoghost.holographicdisplays.api.Hologram;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import org.bukkit.entity.Player;
+import org.bukkit.scheduler.BukkitScheduler;
+import org.primesoft.holostats.HoloStatsMain;
 import org.primesoft.holostats.hologram.HologramWrapper;
 
 /**
@@ -17,24 +20,35 @@ public class PlayerEntry {
 
     private Player m_player;
     private String m_name;
+    private UUID m_token;
     private final UUID m_uuid;
     private HologramWrapper[] m_holograms;
     private Hologram m_hologram;
     private final Object m_mutex = new Object();
+    private final PlayerManager m_playerManager;
 
-    public PlayerEntry(Player player, String name) {
-        this(player, name, player.getUniqueId());
+    private HologramWrapper m_currentPage;
+    private long m_nextPage = 0;
+
+    public PlayerEntry(PlayerManager playerManager,
+            Player player, String name) {
+        this(playerManager, player, name, player.getUniqueId());
     }
 
-    public PlayerEntry(String name, UUID uuid) {
-        this(null, name, uuid);
+    public PlayerEntry(PlayerManager playerManager,
+            String name, UUID uuid) {
+        this(playerManager, null, name, uuid);
     }
 
-    private PlayerEntry(Player player, String name, UUID uuid) {
+    private PlayerEntry(PlayerManager playerManager,
+            Player player, String name, UUID uuid) {
         m_player = player;
         m_uuid = uuid;
         m_name = name;
         m_holograms = new HologramWrapper[0];
+        m_currentPage = null;
+        m_playerManager = playerManager;
+        m_token = UUID.randomUUID();
     }
 
     public Player getPlayer() {
@@ -106,31 +120,92 @@ public class PlayerEntry {
 
             });
 
+            m_currentPage = null;
             m_holograms = holograms.toArray(new HologramWrapper[0]);
-
-            System.out.println(m_name);
-            for (HologramWrapper h : m_holograms) {
-                System.out.println("--------------------------------");
-                for (String s : h.getLines(m_name)) {
-                    System.out.println("\"" + s + "\"");
-                }
-                System.out.println("--------------------------------");
-            }
+            nextPage(System.currentTimeMillis());
         }
     }
 
-    
     /**
      * Set current display hologram
-     * @param hologram 
+     *
+     * @param hologram
      */
     public void setHologram(Hologram hologram) {
-        synchronized(m_mutex){
+        synchronized (m_mutex) {
             if (m_hologram != null) {
-                m_hologram.delete();                
+                m_hologram.delete();
             }
-            
+
             m_hologram = hologram;
         }
+    }
+
+    /**
+     * Move to next hologram page
+     *
+     * @param now
+     * @return
+     */
+    public long nextPage(long now) {
+        synchronized (m_mutex) {
+            if (m_nextPage < now || m_currentPage == null) {
+                if (m_currentPage == null) {
+                    m_currentPage = m_holograms != null && m_holograms.length > 0 ? m_holograms[0] : null;
+                } else {
+                    int idx = Arrays.binarySearch(m_holograms, m_currentPage);
+
+                    idx = (idx + 1) % m_holograms.length;
+
+                    m_currentPage = m_holograms[idx];
+                }
+
+                m_token = UUID.randomUUID();
+                m_nextPage = now + (m_currentPage != null ? m_currentPage.stayTime() : 0) * 1000;
+
+                setPage(m_token, m_currentPage);
+            }
+
+            return m_nextPage - now;
+        }
+    }
+
+    /**
+     * Set hologram page
+     *
+     * @param m_token
+     * @param m_currentPage
+     */
+    private void setPage(final UUID token, final HologramWrapper currentPage) {
+        final Hologram hologram;
+        synchronized (m_mutex) {
+            hologram = m_hologram;
+
+            if (hologram == null || hologram.isDeleted()
+                    || currentPage == null) {
+                return;
+            }
+        }
+
+        HoloStatsMain plugin = m_playerManager.getParent();
+        BukkitScheduler scheduler = plugin.getScheduler();
+        scheduler.runTask(plugin, new Runnable() {
+            public void run() {
+                String[] lines;
+
+                synchronized (m_mutex) {
+                    if (!m_token.equals(token) || hologram.isDeleted()) {
+                        return;
+                    }
+
+                    lines = currentPage.getLines(m_name);
+                }
+
+                hologram.clearLines();
+                for (String s : lines) {
+                    hologram.appendTextLine(s);
+                }
+            }
+        });
     }
 }

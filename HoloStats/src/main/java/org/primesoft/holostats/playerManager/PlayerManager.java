@@ -9,14 +9,12 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.primesoft.holostats.HoloStatsMain;
-import org.primesoft.holostats.hologram.HologramManager;
 
 /**
  *
  * @author SBPrime
  */
 public class PlayerManager implements Listener {
-
     private final HoloStatsMain m_parent;
 
     /**
@@ -24,6 +22,10 @@ public class PlayerManager implements Listener {
      */
     private final HashMap<UUID, PlayerEntry> m_playersUids;
 
+    public HoloStatsMain getParent() {
+        return m_parent;
+    }
+    
     public PlayerManager(HoloStatsMain pluginMain) {
         m_parent = pluginMain;
         m_playersUids = new HashMap<UUID, PlayerEntry>();
@@ -77,7 +79,7 @@ public class PlayerManager implements Listener {
                 return wrapper;
             }
 
-            wrapper = new PlayerEntry(player, pName);
+            wrapper = new PlayerEntry(this, player, pName);
             m_playersUids.put(uuid, wrapper);
             return wrapper;
         }
@@ -106,7 +108,11 @@ public class PlayerManager implements Listener {
         UUID uuid = player.getUniqueId();
         PlayerEntry entry;
         synchronized (m_playersUids) {
-            entry = m_playersUids.remove(uuid);
+            entry = m_playersUids.remove(uuid);            
+        }
+        
+        if (entry != null) {
+            entry.setHologram(null);
         }
     }
 
