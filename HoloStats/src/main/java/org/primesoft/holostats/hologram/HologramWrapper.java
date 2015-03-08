@@ -1,9 +1,11 @@
 package org.primesoft.holostats.hologram;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import org.bukkit.ChatColor;
 import org.json.simple.JSONObject;
+import org.primesoft.holostats.RestAPI;
 import org.primesoft.holostats.skins.SkinProvider;
 import org.primesoft.holostats.utils.InOutParam;
 import org.primesoft.holostats.utils.JSONUtils;
@@ -20,7 +22,7 @@ public final class HologramWrapper {
      * @param o
      * @return
      */
-    public static HologramWrapper parse(JSONObject o) {
+    public static HologramWrapper parse(JSONObject o, HologramType type, String player) {
         if (o == null) {
             return null;
         }
@@ -39,10 +41,16 @@ public final class HologramWrapper {
             return null;
         }
 
-        return new HologramWrapper(id.getValue(), title, lines, login,
-                stayTime, updateIn > 0 ? (now + updateIn * 1000) : -1, sortId);
+        return new HologramWrapper(id.getValue(), type, title, lines, login,
+                stayTime, updateIn > 0 ? (now + updateIn * 1000) : -1, sortId,
+                player);
     }
 
+    /**
+     * The current player login
+     */
+    private final String m_player;
+    
     /**
      * Mta mutex
      */
@@ -66,12 +74,18 @@ public final class HologramWrapper {
     /**
      * Hologram sort ID
      */
-    private int m_sortId;
+    private final int m_sortId;
 
     /**
      * The hologram ID
      */
-    private int m_id;
+    private final int m_id;
+
+    private final HologramType m_type;
+
+    public HologramType getType() {
+        return m_type;
+    }
 
     public int getId() {
         return m_id;
@@ -92,8 +106,39 @@ public final class HologramWrapper {
      * @param now
      * @return
      */
-    public boolean update(long now) {
-        return m_nextUpdate != -1 && now > m_nextUpdate;
+    public long update(long now) {
+        synchronized (m_mutex) {
+            if (m_nextUpdate == -1) {
+                return -1;
+            }
+
+            if (m_nextUpdate <= now) {
+                JSONObject o = null;
+
+                switch (m_type) {
+                    default:
+                        break;
+                    case Player:
+                        o = RestAPI.getPlayerObject(m_id, m_player);
+                        break;
+                    case Global:
+                        o = RestAPI.getGlobalObject(m_id);
+                        break;
+                }
+
+                if (o != null) {
+                    String title = JSONUtils.getString(o, "title", null);
+                    String lines = JSONUtils.getString(o, "lines", null);
+                    int stayTime = JSONUtils.getInt(o, "stayTime", 5);
+                    int updateIn = JSONUtils.getInt(o, "updateIn", -1);
+                    String login = JSONUtils.getString(o, "player", null);
+
+                    initializeHologram(title, lines, login, stayTime, updateIn > 0 ? (now + updateIn * 1000) : -1);
+                }
+            }
+
+            return m_nextUpdate - now;
+        }
     }
 
     /**
@@ -105,14 +150,18 @@ public final class HologramWrapper {
         return m_stayTime;
     }
 
-    private HologramWrapper(int id, String title, String lines, String login, int stayTime, long nextUpdate, int sortId) {
+    private HologramWrapper(int id, HologramType type, String title, String lines, String login, int stayTime, long nextUpdate, int sortId,
+            String player) {
         m_id = id;
-        InitializeHologram(title, lines, login, stayTime, nextUpdate, sortId);
+        m_type = type;
+        m_sortId = sortId;
+        m_player = player;
+
+        initializeHologram(title, lines, login, stayTime, nextUpdate);
     }
 
-    public void InitializeHologram(String title, String message,
-            String login,
-            int stayTime, long nextUpdate, int sortId) {
+    private void initializeHologram(String title, String message, String login,
+            int stayTime, long nextUpdate) {
         List<String> holoLines = new ArrayList<String>();
         if (title != null && !title.isEmpty()) {
             holoLines.add(title);
@@ -127,18 +176,13 @@ public final class HologramWrapper {
             skinLines = new String[0];
         }
 
-        for (String s : skinLines) {
-            holoLines.add(s);
-        }
-        for (String s : lines) {
-            holoLines.add(s);
-        }
+        holoLines.addAll(Arrays.asList(skinLines));
+        holoLines.addAll(Arrays.asList(lines));
 
         synchronized (m_mutex) {
-            m_lines = holoLines.toArray(new String[0]);            
+            m_lines = holoLines.toArray(new String[0]);
             m_stayTime = Math.max(stayTime, 1);
             m_nextUpdate = nextUpdate;
-            m_sortId = sortId;
         }
     }
 

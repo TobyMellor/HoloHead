@@ -67,7 +67,7 @@ public class HologramManager {
 
     /**
      * Number of player holograms
-     */    
+     */
     private int m_playerHolosCnt;
 
     /**
@@ -80,16 +80,25 @@ public class HologramManager {
      */
     private HologramWrapper[] m_configHolos;
 
-    
+    /**
+     * List of player holograms
+     */
+    private final HashMap<PlayerEntry, List<HologramWrapper>> m_playerHolograms;
+
     /**
      * Data update token
      */
     private UUID m_token;
 
     /**
-     * THe page changer token
+     * The page changer token
      */
     private UUID m_tokenPageChanger;
+
+    /**
+     * The hologram update token
+     */
+    private UUID m_tokenUpdater;
 
     private static void log(String msg) {
         HoloStatsMain.log(msg);
@@ -101,6 +110,7 @@ public class HologramManager {
         m_isInitialized = false;
         m_scheduler = m_pluginMain.getScheduler();
         m_playerManager = m_pluginMain.getPlayerManager();
+        m_playerHolograms = new HashMap<PlayerEntry, List<HologramWrapper>>();
     }
 
     public boolean initialize() {
@@ -141,7 +151,9 @@ public class HologramManager {
                 m_targetHologram = null;
             }
 
+            m_playerHolograms.clear();
             m_token = UUID.randomUUID();
+            
             initializePlayerHolograms();
         }
     }
@@ -157,7 +169,7 @@ public class HologramManager {
             return null;
         }
 
-        Hologram result;
+        Hologram result = null;
         synchronized (m_mutex) {
             if (!m_isInitialized || m_targetHologram == null) {
                 return null;
@@ -165,7 +177,7 @@ public class HologramManager {
 
             log("Creating hologram for player \"" + player.getName() + "\"...");
             result = HologramsAPI.createHologram(m_pluginMain, m_targetHologram.getLocation());
-            result.appendTextLine(player.getName());
+            result.appendTextLine("Loading...");
 
             if (result == null) {
                 log("Unable to create hologram.");
@@ -224,6 +236,25 @@ public class HologramManager {
         return true;
     }
 
+    
+    /**
+     * Handle player removal
+     *
+     * @param entry
+     */
+    public void removePlayer(PlayerEntry entry) {
+        synchronized (m_mutex) {
+            if (entry == null) {
+                return;
+            }
+            
+            if (m_playerHolograms.containsKey(entry)) {
+                m_playerHolograms.remove(entry);
+            }
+        }
+    }
+    
+    
     /**
      * Update player holograms
      *
@@ -255,12 +286,17 @@ public class HologramManager {
                     }
 
                     HologramWrapper[] holos = pHolos.toArray(new HologramWrapper[0]);
+                    if (m_playerHolograms.containsKey(player)) {
+                        m_playerHolograms.remove(player);
+                    }
+                    m_playerHolograms.put(player, pHolos);
 
                     log(String.format(format, holos.length + " holograms for player " + player.getName() + " loaded."));
                     player.update(holos, m_globalHolos, m_configHolos);
                 }
 
                 pageChangerStart();
+                hologramUpdaterStart();
             }
         });
     }
@@ -309,7 +345,7 @@ public class HologramManager {
         for (String s : ConfigProvider.getConfigHolos()) {
             try {
                 JSONObject o = (JSONObject) JSONValue.parseWithException(s);
-                hologram = HologramWrapper.parse(o);
+                hologram = HologramWrapper.parse(o, HologramType.Other, null);
                 if (hologram != null) {
                     cHolos.add(hologram);
                 }
@@ -324,6 +360,7 @@ public class HologramManager {
                 return;
             }
 
+            m_playerHolograms.clear();
             m_playerHolosCnt = playerHolosCnt;
             m_globalHolos = globalHolos.toArray(new HologramWrapper[0]);
             m_configHolos = cHolos.toArray(new HologramWrapper[0]);
@@ -331,7 +368,9 @@ public class HologramManager {
             log(String.format(format, m_globalHolos.length + " global holograms loaded."));
             log(String.format(format, m_configHolos.length + " configuration holograms loaded."));
             for (PlayerEntry player : playerHolos.keySet()) {
-                HologramWrapper[] holos = playerHolos.get(player).toArray(new HologramWrapper[0]);
+                List<HologramWrapper> tmp = playerHolos.get(player);
+                HologramWrapper[] holos = tmp.toArray(new HologramWrapper[0]);
+                m_playerHolograms.put(player, tmp);
 
                 log(String.format(format, holos.length + " holograms for player " + player.getName() + " loaded."));
                 player.update(holos, m_globalHolos, m_configHolos);
@@ -339,6 +378,7 @@ public class HologramManager {
         }
 
         pageChangerStart();
+        hologramUpdaterStart();
     }
 
     /**
@@ -391,7 +431,7 @@ public class HologramManager {
         final String format = "[" + token + "] %s";
 
         long now = System.currentTimeMillis();
-        long nextUpdateIn = Long.MAX_VALUE;
+        long nextPageChangeIn = Long.MAX_VALUE;
 
         synchronized (m_mutex) {
             do {
@@ -403,20 +443,93 @@ public class HologramManager {
                 log(String.format(format, "Calculating next interewal."));
                 final PlayerEntry[] allPlayers = m_playerManager.getAll();
                 for (PlayerEntry p : allPlayers) {
-                    nextUpdateIn = Math.min(nextUpdateIn, p.nextPage(now));
+                    nextPageChangeIn = Math.min(nextPageChangeIn, p.nextPage(now));
                 }
-            } while (nextUpdateIn < 1);
+            } while (nextPageChangeIn < 1);
 
-            nextUpdateIn = Math.min(nextUpdateIn, MAX_WAIT);
+            nextPageChangeIn = Math.min(nextPageChangeIn, MAX_WAIT);
         }
-        
-        long minWait = Math.max(1, nextUpdateIn * TICKS_PER_SECOND / 1000);
 
-        log(String.format(format, "Next page change in " + nextUpdateIn +"ms (" + minWait + " ticks)"));
+        long minWait = Math.max(1, nextPageChangeIn * TICKS_PER_SECOND / 1000);
+
+        log(String.format(format, "Next page change in " + nextPageChangeIn + "ms (" + minWait + " ticks)"));
         m_scheduler.runTaskLater(m_pluginMain, new Runnable() {
             public void run() {
                 pageChangerLoop(token);
             }
         }, minWait);
+    }
+
+    /**
+     * Start hologram updater
+     */
+    private void hologramUpdaterStart() {
+        final UUID token = UUID.randomUUID();
+
+        synchronized (m_mutex) {
+            m_tokenUpdater = token;
+            log("[" + token.toString() + "] Starting new hologram updater");
+        }
+
+        m_scheduler.runTaskAsynchronously(m_pluginMain, new Runnable() {
+            public void run() {
+                hologramUpdaterLoop(token);
+            }
+        });
+    }
+
+    /**
+     * The hologram updater loop
+     *
+     * @param token
+     */
+    private void hologramUpdaterLoop(final UUID token) {
+        final String format = "[" + token + "] %s";
+
+        long now = System.currentTimeMillis();
+        long nextUpdateIn = Long.MAX_VALUE;
+
+        synchronized (m_mutex) {
+            do {
+                if (!token.equals(m_tokenUpdater)) {
+                    log(String.format(format, "Token changed."));
+                    return;
+                }
+
+                log(String.format(format, "Calculating next update time."));
+                long update;
+
+                for (HologramWrapper h : m_globalHolos) {
+                    update = h.update(now);
+                    if (update > 0) {
+                        nextUpdateIn = Math.min(nextUpdateIn, update);
+                    }
+                }
+                for (List<HologramWrapper> entry : m_playerHolograms.values()) {
+                    for (HologramWrapper h : entry) {
+                        update = h.update(now);
+                        if (update > 0) {
+                            nextUpdateIn = Math.min(nextUpdateIn, update);
+                        }
+                    }
+                }
+            } while (nextUpdateIn < 1);
+
+            nextUpdateIn = Math.min(nextUpdateIn, MAX_WAIT);
+        }
+
+        final long minWait = nextUpdateIn;
+
+        log(String.format(format, "Next update in " + minWait + "ms."));
+
+        m_scheduler.runTaskAsynchronously(m_pluginMain, new Runnable() {
+            public void run() {
+                try {
+                    Thread.sleep(minWait);
+                } catch (InterruptedException ex) {
+                }
+                hologramUpdaterLoop(token);
+            }
+        });
     }
 }

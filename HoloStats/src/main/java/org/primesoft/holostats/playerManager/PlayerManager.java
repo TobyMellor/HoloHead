@@ -114,6 +114,8 @@ public class PlayerManager implements Listener {
         if (entry != null) {
             entry.setHologram(null);
         }
+        
+        m_parent.getHologramManager().removePlayer(entry);
     }
 
     /**

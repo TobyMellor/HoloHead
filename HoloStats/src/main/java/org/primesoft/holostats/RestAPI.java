@@ -7,6 +7,7 @@ import org.json.simple.JSONObject;
 import org.json.simple.JSONValue;
 import org.json.simple.parser.ParseException;
 import org.primesoft.holostats.configuration.ConfigProvider;
+import org.primesoft.holostats.hologram.HologramType;
 import org.primesoft.holostats.hologram.HologramWrapper;
 import org.primesoft.holostats.utils.ExceptionHelper;
 import org.primesoft.holostats.utils.InOutParam;
@@ -96,14 +97,15 @@ public class RestAPI {
         return size.getValue();
     }
 
-    private static HologramWrapper parseHologramResponse(JSONObject response, String method) {
+    private static HologramWrapper parseHologramResponse(JSONObject response, String method,
+            HologramType type, String player) {
         InOutParam<Integer> error = InOutParam.Out();
         if (JSONUtils.getInt(response, "error", error) && error.getValue() > 0) {
             log("Request for \"" + method + "\" returned an error: " + error.getValue());
             return null;
         }
 
-        HologramWrapper result = HologramWrapper.parse(response);
+        HologramWrapper result = HologramWrapper.parse(response, type, player);
 
         if (result == null) {
             log("Unable to parse request \"" + method + "\" result.");
@@ -132,27 +134,36 @@ public class RestAPI {
     }
 
     public static HologramWrapper getGlobalHologram(int id) {
-        JSONObject response = get(buildUrl("globalHolo", new String[]{
-            "holoId=" + id
-        }));
+        JSONObject response = getGlobalObject(id);
 
         if (response == null) {
             return null;
         }
 
-        return parseHologramResponse(response, "globalHolo");
+        return parseHologramResponse(response, "globalHolo", HologramType.Global, null);
     }
 
     public static HologramWrapper getPlayerHologram(int id, String playerName) {
-        JSONObject response = get(buildUrl("playerHolo", new String[]{
-            "holoId=" + id,
-            "player=" + playerName
-        }));
-
+        JSONObject response = getPlayerObject(id, playerName);
+        
         if (response == null) {
             return null;
         }
 
-        return parseHologramResponse(response, "playerHolo");
+        return parseHologramResponse(response, "playerHolo", HologramType.Player, playerName);
+    }
+    
+    
+    public static JSONObject getGlobalObject(int id) {
+        return get(buildUrl("globalHolo", new String[]{
+            "holoId=" + id
+        }));
+    }
+
+    public static JSONObject getPlayerObject(int id, String playerName) {
+        return get(buildUrl("playerHolo", new String[]{
+            "holoId=" + id,
+            "player=" + playerName
+        }));
     }
 }
