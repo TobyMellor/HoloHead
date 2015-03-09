@@ -50,7 +50,7 @@ public final class HologramWrapper {
      * The current player login
      */
     private final String m_player;
-    
+
     /**
      * Mta mutex
      */
@@ -167,7 +167,7 @@ public final class HologramWrapper {
             holoLines.add(title);
         }
 
-        final String[] lines = message.replaceAll("(\r\n)|(\n\r)", "\n").split("\n");
+        final String[] lines = message != null ? message.replaceAll("(\r\n)|(\n\r)", "\n").split("\n") : new String[0];
         final String[] skinLines;
 
         if (login != null && !login.isEmpty()) {
@@ -179,6 +179,14 @@ public final class HologramWrapper {
         holoLines.addAll(Arrays.asList(skinLines));
         holoLines.addAll(Arrays.asList(lines));
 
+        String[] hl = holoLines.toArray(new String[0]);
+        holoLines.clear();
+        for (String s : hl) {
+            s = s.replace('&', ChatColor.COLOR_CHAR).trim();
+            if (!s.isEmpty()) {
+                holoLines.add(s);
+            }
+        }
         synchronized (m_mutex) {
             m_lines = holoLines.toArray(new String[0]);
             m_stayTime = Math.max(stayTime, 1);

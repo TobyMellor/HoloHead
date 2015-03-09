@@ -440,7 +440,7 @@ public class HologramManager {
                     return;
                 }
 
-                log(String.format(format, "Calculating next interewal."));
+                log(String.format(format, "Calculating next interval."));
                 final PlayerEntry[] allPlayers = m_playerManager.getAll();
                 for (PlayerEntry p : allPlayers) {
                     nextPageChangeIn = Math.min(nextPageChangeIn, p.nextPage(now));
