@@ -153,7 +153,7 @@ public class HologramManager {
 
             m_playerHolograms.clear();
             m_token = UUID.randomUUID();
-            
+
             initializePlayerHolograms();
         }
     }
@@ -236,7 +236,6 @@ public class HologramManager {
         return true;
     }
 
-    
     /**
      * Handle player removal
      *
@@ -247,14 +246,13 @@ public class HologramManager {
             if (entry == null) {
                 return;
             }
-            
+
             if (m_playerHolograms.containsKey(entry)) {
                 m_playerHolograms.remove(entry);
             }
         }
     }
-    
-    
+
     /**
      * Update player holograms
      *
@@ -431,10 +429,12 @@ public class HologramManager {
         final String format = "[" + token + "] %s";
 
         long now = System.currentTimeMillis();
-        long nextPageChangeIn = Long.MAX_VALUE;
+        long nextPageChangeIn;
 
         synchronized (m_mutex) {
             do {
+                nextPageChangeIn = Long.MAX_VALUE;
+
                 if (!token.equals(m_tokenPageChanger)) {
                     log(String.format(format, "Token changed."));
                     return;
@@ -443,7 +443,10 @@ public class HologramManager {
                 log(String.format(format, "Calculating next interval."));
                 final PlayerEntry[] allPlayers = m_playerManager.getAll();
                 for (PlayerEntry p : allPlayers) {
-                    nextPageChangeIn = Math.min(nextPageChangeIn, p.nextPage(now));
+                    long nextUpdate = p.nextPage(now);
+                    if (nextUpdate > 0) {
+                        nextPageChangeIn = Math.min(nextPageChangeIn, nextUpdate);
+                    }
                 }
             } while (nextPageChangeIn < 1);
 
@@ -499,12 +502,14 @@ public class HologramManager {
                 log(String.format(format, "Calculating next update time."));
                 long update;
 
-                for (HologramWrapper h : m_globalHolos) {
-                    update = h.update(now);
-                    if (update > 0) {
-                        nextUpdateIn = Math.min(nextUpdateIn, update);
+                if (m_globalHolos != null) {
+                    for (HologramWrapper h : m_globalHolos) {
+                        update = h.update(now);
+                        if (update > 0) {
+                            nextUpdateIn = Math.min(nextUpdateIn, update);
+                        }
                     }
-                }
+                }                
                 for (List<HologramWrapper> entry : m_playerHolograms.values()) {
                     for (HologramWrapper h : entry) {
                         update = h.update(now);

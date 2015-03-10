@@ -135,7 +135,7 @@ public class PlayerEntry {
     public long nextPage(long now) {
         synchronized (m_mutex) {
             if (m_nextPage <= now || m_currentPage == null) {
-                if (m_currentPage == null) {                    
+                if (m_currentPage == null) {
                     m_currentPage = !m_holograms.isEmpty() ? m_holograms.get(0) : null;
                 } else {
                     int idx = m_holograms.indexOf(m_currentPage);
@@ -145,11 +145,16 @@ public class PlayerEntry {
                     m_currentPage = m_holograms.get(idx);
                 }
 
-                m_nextPage = now + (m_currentPage != null ? m_currentPage.stayTime() : 0) * 1000;
+                long stayTime = m_currentPage != null ? m_currentPage.stayTime() : 0;
+                if (stayTime <= 0) {
+                    m_nextPage = -1;
+                } else {
+                    m_nextPage = now + stayTime * 1000;
+                }
 
                 setPage(m_currentPage);
             }
-            return m_nextPage - now;
+            return m_nextPage < 0 ? -1 : (m_nextPage - now);
         }
     }
 

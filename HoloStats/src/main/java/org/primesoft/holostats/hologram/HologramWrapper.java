@@ -176,8 +176,12 @@ public final class HologramWrapper {
             skinLines = new String[0];
         }
 
-        holoLines.addAll(Arrays.asList(skinLines));
-        holoLines.addAll(Arrays.asList(lines));
+        if (skinLines != null) {
+            holoLines.addAll(Arrays.asList(skinLines));
+        }
+        if (lines != null) {
+            holoLines.addAll(Arrays.asList(lines));
+        }
 
         String[] hl = holoLines.toArray(new String[0]);
         holoLines.clear();

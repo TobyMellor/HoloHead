@@ -6,7 +6,7 @@
 
     <groupId>HoloStats</groupId>
     <artifactId>HoloStats</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>1.0.1</version>
     <dependencies>
         <dependency>
             <groupId>org.bukkit</groupId>
