@@ -49,6 +49,28 @@ public class SkinProvider {
             return result;
         } catch (Exception e) {
             ExceptionHelper.printException(e, "Unable to download player \"" + playerLogin + "\" skin");
+
+            return getDefault();
+        }
+    }
+
+    /**
+     * Get the default player head
+     *
+     * @return
+     */
+    private static BufferedImage getDefault() {
+        try {
+            BufferedImage img = (BufferedImage) ImageIO.read(SkinProvider.class.getResourceAsStream("/steve.png"));
+            if (img == null) {
+                log("Unable to initialize the default skin.");
+                return null;
+            }
+            
+            return img;
+        } catch (Exception e) {
+            ExceptionHelper.printException(e, "Unable to initialize the default skin.");
+
             return null;
         }
     }
